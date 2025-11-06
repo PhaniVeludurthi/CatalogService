@@ -1,0 +1,56 @@
+services:
+  catalogservice:
+    image: ${DOCKER_REGISTRY-}catalogservice
+    build:
+      context: .
+      dockerfile: CatalogService/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ASPNETCORE_HTTPS_PORTS=8081
+      - ConnectionStrings__DefaultConnection=Host=catalogdb;Database=catalogdb;Username=postgres;Password=postgres
+    ports:
+      - "5001:8080"
+
+  catalogdb:
+    image: postgres
+    container_name: catalogdb
+    restart: always
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_DB: catalogdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - catalogdb_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - catalog-network
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: catalog_pgadmin_container
+    restart: always
+    ports:
+      - "8885:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@pgadmin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    volumes:
+      - catalog-pgadmin-data:/var/lib/pgadmin
+    networks:
+      - catalog-network
+
+networks:
+  catalog-network:
+    driver: bridge
+    name: catalog-network
+    
+volumes:
+  catalogdb_data:
+  catalog-pgadmin-data: 

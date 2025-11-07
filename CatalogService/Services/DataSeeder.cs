@@ -22,11 +22,28 @@ namespace CatalogService.Services
                 await _context.Database.MigrateAsync();
                 _logger.LogInformation("Database migrations applied");
 
-                // Seed venues
-                await SeedVenuesAsync();
+                var venueCount = await _context.Venues.CountAsync();
+                if (venueCount == 0)
+                {
+                    // Seed venues
+                    await SeedVenuesAsync();
+                }
+                else
+                {
+                    _logger.LogInformation("venues table already has {Count} records, skipping seed", venueCount);
+                }
 
-                // Seed events
-                await SeedEventsAsync();
+                var eventCount = await _context.Events.CountAsync();
+                if (eventCount == 0)
+                {
+                    // Seed events
+                    await SeedEventsAsync();
+                }
+                else
+                {
+                    _logger.LogInformation("events table already has {Count} records, skipping seed", eventCount);
+                }
+
 
                 _logger.LogInformation("Database seeding completed successfully");
             }

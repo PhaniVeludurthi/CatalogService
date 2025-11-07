@@ -4,12 +4,31 @@ using CatalogService.Repository.Interfaces;
 using CatalogService.Services;
 using Microsoft.EntityFrameworkCore;
 using Prometheus;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .Enrich.WithThreadId()
+    .Enrich.WithProperty("ServiceName", "CatalogService")
+    .CreateLogger();
 
-// Add services to the container
-builder.Services.AddControllers();
+builder.Host.UseSerilog();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // This should already be present
+        options.JsonSerializerOptions.ReferenceHandler =
+            System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+
+        // Optional: Add default ignore condition
+        options.JsonSerializerOptions.DefaultIgnoreCondition =
+            System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+    });
+// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -46,6 +65,7 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();
 
+
 var app = builder.Build();
 
 // Seed database
@@ -65,12 +85,15 @@ if (app.Environment.IsDevelopment())
         c.RoutePrefix = "swagger";
     });
 }
+app.MapOpenApi();
 
 app.UseCors("AllowAll");
 
 // Prometheus metrics endpoint
 app.UseMetricServer();
 app.UseHttpMetrics();
+
+app.UseHttpsRedirection();
 
 app.MapControllers();
 

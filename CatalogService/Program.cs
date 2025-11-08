@@ -1,4 +1,6 @@
+using CatalogService;
 using CatalogService.Context;
+using CatalogService.Middleware;
 using CatalogService.Repository;
 using CatalogService.Repository.Interfaces;
 using CatalogService.Services;
@@ -8,14 +10,6 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
-    .Enrich.FromLogContext()
-    .Enrich.WithThreadId()
-    .Enrich.WithProperty("ServiceName", "CatalogService")
-    .CreateLogger();
-
-builder.Host.UseSerilog();
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -48,6 +42,7 @@ builder.Services.AddDbContext<CatalogDbContext>(options =>
 builder.Services.AddScoped<IEventRepository, EventRepository>();
 builder.Services.AddScoped<IVenueRepository, VenueRepository>();
 builder.Services.AddScoped<DatabaseSeeder>();
+builder.Services.AddScoped<ICorrelationService, CorrelationService>();
 
 // CORS
 builder.Services.AddCors(options =>
@@ -65,6 +60,21 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();
 
+
+// Build a temporary service provider to get the correlation service
+var serviceProvider = builder.Services.BuildServiceProvider();
+var correlationService = serviceProvider.GetRequiredService<ICorrelationService>();
+
+// Configure Serilog with the enricher
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .Enrich.WithThreadId()
+    .Enrich.WithProperty("ServiceName", "CatalogService")
+    .Enrich.With(new CorrelationIdEnricher(correlationService))
+    .CreateLogger();
+
+builder.Host.UseSerilog();
 
 var app = builder.Build();
 
@@ -87,6 +97,8 @@ if (app.Environment.IsDevelopment())
 }
 app.MapOpenApi();
 
+app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseRequestLogging();
 app.UseCors("AllowAll");
 
 // Prometheus metrics endpoint

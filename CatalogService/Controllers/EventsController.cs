@@ -1,16 +1,18 @@
 ﻿using CatalogService.Dtos;
 using CatalogService.Models;
 using CatalogService.Repository.Interfaces;
+using CatalogService.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CatalogService.Controllers
 {
     [ApiController]
     [Route("api/v1/[controller]")]
-    public class EventsController(IEventRepository eventRepository, ILogger<EventsController> logger) : ControllerBase
+    public class EventsController(IEventRepository eventRepository, ILogger<EventsController> logger, IEventService eventService) : ControllerBase
     {
         private readonly IEventRepository _eventRepository = eventRepository;
         private readonly ILogger<EventsController> _logger = logger;
+        private readonly IEventService _eventService = eventService;
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<EventDto>>> GetAll()
@@ -114,6 +116,17 @@ namespace CatalogService.Controllers
             var deleted = await _eventRepository.DeleteAsync(id);
             if (!deleted)
                 return NotFound(new { message = $"Event with ID {id} not found" });
+
+            return NoContent();
+        }
+        [HttpPatch("{id}/cancel")]
+        public async Task<ActionResult> CancelEvent(int id)
+        {
+            var existing = await _eventRepository.GetByIdAsync(id);
+            if (existing == null)
+                return NotFound(new { message = $"Event with ID {id} not found" });
+
+            await _eventService.CancelEventAsync(id);
 
             return NoContent();
         }

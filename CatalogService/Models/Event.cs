@@ -10,6 +10,7 @@ namespace CatalogService.Models
         public DateTime EventDate { get; set; }
         public decimal BasePrice { get; set; }
         public string Status { get; set; }
+        public DateTime? CancelledAt { get; set; }
         // Navigation property
         public Venue Venue { get; set; } = null!;
     }

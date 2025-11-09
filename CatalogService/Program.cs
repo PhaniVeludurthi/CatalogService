@@ -43,6 +43,8 @@ builder.Services.AddScoped<IEventRepository, EventRepository>();
 builder.Services.AddScoped<IVenueRepository, VenueRepository>();
 builder.Services.AddScoped<DatabaseSeeder>();
 builder.Services.AddScoped<ICorrelationService, CorrelationService>();
+builder.Services.AddScoped<IEventService, EventService>();
+builder.Services.AddHttpClient();
 
 // CORS
 builder.Services.AddCors(options =>

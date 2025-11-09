@@ -9,6 +9,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=catalogdb;Database=catalogdb;Username=postgres;Password=postgres
+      - Services__OrderServiceUrl=http://host.docker.internal:5004
     ports:
       - "5001:8080"
     depends_on:

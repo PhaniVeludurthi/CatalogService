@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-service
+  namespace: ticketing
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: catalog-service } }
+  template:
+    metadata:
+      labels: { app: catalog-service }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      initContainers:
+      - name: wait-for-catalogdb
+        image: postgres:16
+        command: ['sh', '-c', 'until pg_isready -h catalog-db -p 5432 -U postgres; do echo "? Waiting for catalog-db..."; sleep 3; done; echo "? catalog-db is ready!"']
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: pg-secrets
+              key: POSTGRES_PASSWORD
+      containers:
+      - name: catalog-service
+        image: phani1269/catalogservice:latest
+        imagePullPolicy: Always
+        env:
+        - { name: ASPNETCORE_ENVIRONMENT, value: Development }
+        - { name: ASPNETCORE_URLS, value: http://+:8080 }
+        - { name: ConnectionStrings__DefaultConnection, value: Host=catalog-db;Database=catalogdb;Username=postgres;Password=postgres }
+        - { name: Serilog__WriteTo__1__Name, value: Seq }
+        - { name: Serilog__WriteTo__1__Args__serverUrl, value: http://seq.ticketing.svc.cluster.local:5341 }
+        - { name: Services__OrderServiceUrl, value: http://order-service.ticketing.svc.cluster.local:8080 }
+        ports: [{ containerPort: 8080 }]
+        readinessProbe: { httpGet: { path: /health/ready, port: 8080 }, initialDelaySeconds: 10, periodSeconds: 10 }
+        livenessProbe:  { httpGet: { path: /health/live,  port: 8080 }, initialDelaySeconds: 20, periodSeconds: 10 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-service
+  namespace: ticketing
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  selector: { app: catalog-service }
+  ports: [{ port: 8080, targetPort: 8080 }]

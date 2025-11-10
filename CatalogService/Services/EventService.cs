@@ -25,12 +25,14 @@ namespace CatalogService.Services
             _logger.LogInformation("Event cancelled: EventId={EventId}", eventId);
 
             // Notify Order Service via webhook (fire-and-forget for simplicity)
-            _ = NotifyOrderServiceAsync(eventEntity);
+            await NotifyOrderServiceAsync(eventEntity);
         }
         private async Task NotifyOrderServiceAsync(Event eventEntity)
         {
             try
             {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
                 var webhook = new
                 {
                     eventId = eventEntity.EventId,
@@ -40,35 +42,32 @@ namespace CatalogService.Services
                 };
 
                 var orderServiceUrl = _configuration["Services:OrderServiceUrl"];
-
                 _httpClient.DefaultRequestHeaders.Remove("X-Correlation-ID");
                 _httpClient.DefaultRequestHeaders.TryAddWithoutValidation(
                     "X-Correlation-ID", _correlationService.GetCorrelationId());
 
                 var response = await _httpClient.PostAsJsonAsync(
                     $"{orderServiceUrl}/api/webhooks/event-cancelled",
-                    webhook);
+                    webhook, cts.Token);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    _logger.LogInformation(
-                        "Order Service notified successfully: EventId={EventId}",
-                        eventEntity.EventId);
+                    _logger.LogInformation("Order Service notified successfully: EventId={EventId}", eventEntity.EventId);
                 }
                 else
                 {
-                    _logger.LogWarning(
-                        "Failed to notify Order Service: EventId={EventId}, StatusCode={StatusCode}",
-                        eventEntity.EventId, response.StatusCode);
+                    _logger.LogWarning("Failed to notify Order Service: EventId={EventId}, StatusCode={StatusCode}", eventEntity.EventId, response.StatusCode);
                 }
+            }
+            catch (TaskCanceledException)
+            {
+                _logger.LogError("Notification to Order Service timed out for EventId={EventId}", eventEntity.EventId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Exception while notifying Order Service: EventId={EventId}",
-                    eventEntity.EventId);
-                // Don't throw - this is fire-and-forget
+                _logger.LogError(ex, "Exception while notifying Order Service: EventId={EventId}", eventEntity.EventId);
             }
         }
+
     }
 }
